@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSD Converter v0.1.0</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f0f1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            max-width: 720px;
+            padding: 2rem 1rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #6c9fff;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        #ai-status {
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        .status-dot.green { background: #4caf50; }
+        .status-dot.red { background: #f44336; }
+        .status-dot.grey { background: #666; }
+
+        main {
+            width: 100%;
+            max-width: 720px;
+            padding: 0 1rem 2rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #333;
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 1.5rem;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: #6c9fff;
+            background: rgba(108, 159, 255, 0.05);
+        }
+
+        .drop-zone .icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+            opacity: 0.5;
+        }
+
+        .drop-zone p {
+            color: #888;
+            font-size: 0.95rem;
+        }
+
+        .drop-zone p strong {
+            color: #6c9fff;
+        }
+
+        #file-list {
+            margin-bottom: 1.5rem;
+        }
+
+        .file-item {
+            background: #1a1a2e;
+            border: 1px solid #2a2a3e;
+            border-radius: 6px;
+            padding: 0.6rem 1rem;
+            margin-bottom: 0.4rem;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+
+        .file-error {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 6px;
+            padding: 0.6rem 1rem;
+            margin-bottom: 0.4rem;
+            color: #f44336;
+            font-size: 0.9rem;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .controls label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: #aaa;
+            cursor: pointer;
+        }
+
+        .controls label.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .controls input[type="checkbox"] {
+            accent-color: #6c9fff;
+        }
+
+        .btn-convert {
+            background: #6c9fff;
+            color: #0f0f1a;
+            border: none;
+            border-radius: 8px;
+            padding: 0.7rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-convert:hover {
+            background: #8bb4ff;
+        }
+
+        .btn-convert:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        #convert-status {
+            margin-top: 0.75rem;
+            font-size: 0.9rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>CSD Converter v0.1.0</h1>
+        <div style="display:flex;gap:1rem;align-items:center;">
+            <div id="chorus-status">Checking Chorus...</div>
+            <div id="ai-status">Checking AI...</div>
+        </div>
+        <div id="status-loader"
+             hx-get="/status"
+             hx-trigger="load"
+             hx-swap="innerHTML"
+             hx-target="#status-loader"
+             style="display:none;">
+        </div>
+    </header>
+
+    <main>
+        <form id="upload-form"
+              hx-post="/upload"
+              hx-target="#file-list"
+              hx-swap="innerHTML"
+              hx-encoding="multipart/form-data">
+
+            <div class="drop-zone" id="drop-zone">
+                <div class="icon">&#128193;</div>
+                <p>Drop <strong>.csd</strong> / <strong>.lkp</strong> files here or click to browse</p>
+                <input type="file" name="files" id="file-input" multiple
+                       accept=".csd,.lkp,.CSD,.LKP"
+                       style="display:none">
+            </div>
+        </form>
+
+        <div id="file-list">
+            {% for f in files %}
+            <div class="file-item">{{ f }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="controls">
+            <label class="{{ 'disabled' if not chorus_configured else '' }}">
+                <input type="checkbox" id="enrich-checkbox"
+                       {{ 'disabled' if not chorus_configured else '' }}>
+                Enrich from Chorus
+            </label>
+            <label class="{{ 'disabled' if not ai_configured else '' }}">
+                <input type="checkbox" id="ai-checkbox"
+                       {{ 'disabled' if not ai_configured else '' }}>
+                AI Analysis
+            </label>
+            <button class="btn-convert" id="btn-convert">Convert &amp; Download</button>
+        </div>
+        <div id="convert-status"></div>
+    </main>
+
+    <script>
+        // Drop zone logic
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const uploadForm = document.getElementById('upload-form');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            fileInput.files = e.dataTransfer.files;
+            htmx.trigger(uploadForm, 'submit');
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                htmx.trigger(uploadForm, 'submit');
+            }
+        });
+
+        // Convert button — vanilla JS fetch for file download
+        document.getElementById('btn-convert').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-convert');
+            const statusEl = document.getElementById('convert-status');
+            const useAi = document.getElementById('ai-checkbox').checked;
+            const useEnrich = document.getElementById('enrich-checkbox').checked;
+
+            btn.disabled = true;
+            statusEl.textContent = 'Converting...';
+
+            try {
+                const formData = new FormData();
+                formData.append('use_ai', useAi ? 'true' : 'false');
+                formData.append('use_enrich', useEnrich ? 'true' : 'false');
+
+                const resp = await fetch('/convert', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    statusEl.textContent = err.error || 'Conversion failed.';
+                    return;
+                }
+
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'csd-conversion.zip';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                statusEl.textContent = 'Download started.';
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        // Handle /status JSON response from hidden loader element
+        function renderStatusDot(targetEl, available, connected, serviceName) {
+            targetEl.textContent = '';
+            const dot = document.createElement('span');
+            dot.className = 'status-dot';
+            const label = document.createElement('span');
+
+            if (available && connected) {
+                dot.classList.add('green');
+                label.textContent = serviceName + ' Connected';
+            } else if (available) {
+                dot.classList.add('red');
+                label.textContent = serviceName + ' Unavailable';
+            } else {
+                dot.classList.add('grey');
+                label.textContent = serviceName + ' Not Configured';
+            }
+
+            targetEl.appendChild(dot);
+            targetEl.appendChild(label);
+        }
+
+        document.body.addEventListener('htmx:afterSwap', (evt) => {
+            if (evt.detail.target.id === 'status-loader') {
+                const loader = evt.detail.target;
+                try {
+                    const data = JSON.parse(loader.textContent);
+                    loader.textContent = '';
+
+                    const aiTarget = document.getElementById('ai-status');
+                    renderStatusDot(aiTarget, data.ai_available, data.ai_connected, 'AI');
+
+                    const chorusTarget = document.getElementById('chorus-status');
+                    renderStatusDot(chorusTarget, data.chorus_available, data.chorus_connected, 'Chorus');
+                } catch (e) {
+                    document.getElementById('ai-status').textContent = 'AI Status Unknown';
+                    document.getElementById('chorus-status').textContent = 'Chorus Status Unknown';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
