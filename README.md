@@ -33,7 +33,7 @@ Open `http://localhost:8000`.
 | `AI_GATEWAY_MODEL` | No | Model ID (default: `Qwen/Qwen3-30B-A3B`) |
 | `CHORUS_URL` | No | AWD server base URL for field registry lookup |
 | `CHORUS_USER` | No | AWD API username |
-| `CHORUS_PASS` | No | AWD API password |
+| `CHORUS_PASSWORD` | No | AWD API password |
 | `CHORUS_CONTEXT` | No | AWD context path (default: `awdServer`) |
 
 ## 12-component harness implementation
