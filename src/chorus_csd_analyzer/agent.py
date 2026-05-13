@@ -22,44 +22,12 @@ from pydantic import BaseModel, Field
 
 from chorus_forms.csd.models import CsdForm
 from chorus_forms.csd.token_tracker import TokenTracker
+from llm_utils import sanitize_field_text
 
 logger = logging.getLogger(__name__)
 
 # Kept for documentation and backward-compatibility (manual loop used this limit).
 MAX_ITERATIONS = 15
-
-# ---------------------------------------------------------------------------
-# Input sanitization — prevent prompt injection via CSD field data
-# ---------------------------------------------------------------------------
-
-# Patterns that look like LLM instructions embedded in field data
-_INJECTION_PATTERNS = re.compile(
-    r"(?i)"
-    r"(?:ignore\s+(?:all\s+)?(?:previous|above|prior)\s+instructions)"
-    r"|(?:you\s+are\s+now\s+)"
-    r"|(?:system\s*:\s*)"
-    r"|(?:assistant\s*:\s*)"
-    r"|(?:human\s*:\s*)"
-    r"|(?:<\s*/?(?:system|instruction|prompt))"
-    r"|(?:\[INST\])"
-)
-
-
-def _sanitize_field_text(text: str) -> str:
-    """Strip potential prompt injection patterns from CSD field data.
-
-    CSD labels, help text, and field values flow into tool outputs that
-    become part of the LLM context. This prevents adversarial content
-    in CSD binaries from manipulating the agent.
-    """
-    if not text:
-        return text
-    # Replace suspicious patterns with a safe placeholder
-    cleaned = _INJECTION_PATTERNS.sub("[filtered]", text)
-    # Truncate excessively long values (CSD fields should be short)
-    if len(cleaned) > 200:
-        cleaned = cleaned[:200] + "..."
-    return cleaned
 
 # Transient HTTP errors worth retrying
 _TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -215,7 +183,7 @@ def create_tools(ctx: AgentContext) -> list:
         ]:
             val = info.get(key)
             if val is not None:
-                parts.append(f"  {label}: {_sanitize_field_text(str(val))}")
+                parts.append(f"  {label}: {sanitize_field_text(str(val))}")
         return "\n".join(parts)
 
     @tool(args_schema=FieldCodeInput)
@@ -226,8 +194,8 @@ def create_tools(ctx: AgentContext) -> list:
             return f"No domain values found for field '{field_code}'."
         lines = [f"Domain values for {field_code} ({len(values)} values):"]
         for v in values[:50]:
-            desc = _sanitize_field_text(v.get("description", ""))
-            val = _sanitize_field_text(v.get("value", "?"))
+            desc = sanitize_field_text(v.get("description", ""))
+            val = sanitize_field_text(v.get("value", "?"))
             lines.append(f"  {val}: {desc}" if desc else f"  {val}")
         if len(values) > 50:
             lines.append(f"  ... and {len(values) - 50} more")
@@ -247,14 +215,14 @@ def create_tools(ctx: AgentContext) -> list:
         for f in display_fields:
             parts = [f"  {f.code}"]
             if f.label:
-                parts.append(f'label="{_sanitize_field_text(f.label)}"')
+                parts.append(f'label="{sanitize_field_text(f.label)}"')
             parts.append(f"type={f.control_type}")
             if f.required:
                 parts.append("REQUIRED")
             if f.read_only:
                 parts.append("READ-ONLY")
             if f.dictionary and f.dictionary.display_name:
-                parts.append(f"displayName={_sanitize_field_text(f.dictionary.display_name)}")
+                parts.append(f"displayName={sanitize_field_text(f.dictionary.display_name)}")
             if f.dictionary and f.dictionary.type:
                 parts.append(f"format={f.dictionary.type}")
             lines.append(" ".join(parts))
@@ -287,14 +255,14 @@ def create_tools(ctx: AgentContext) -> list:
             return f"Form '{form_name}' not found."
         lines = [
             f"Form: {form.meta.file_name}",
-            f"  Title: {_sanitize_field_text(form.meta.form_title or 'Unknown')}",
+            f"  Title: {sanitize_field_text(form.meta.form_title or 'Unknown')}",
             f"  Type: {form.meta.form_type}",
             f"  Pages: {form.meta.num_pages}",
             f"  Fields: {len(form.fields)}",
             f"  Groups: {len(form.groups)}",
         ]
         if form.meta.dll_hooks:
-            lines.append(f"  DLL Hooks: {', '.join(_sanitize_field_text(h) for h in form.meta.dll_hooks)}")
+            lines.append(f"  DLL Hooks: {', '.join(sanitize_field_text(h) for h in form.meta.dll_hooks)}")
         if form.warnings:
             lines.append(f"  Parse Warnings: {len(form.warnings)}")
         return "\n".join(lines)
