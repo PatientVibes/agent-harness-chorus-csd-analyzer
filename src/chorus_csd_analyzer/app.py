@@ -31,7 +31,7 @@ from chorus_v1_client import ChorusV1Client
 
 from chorus_csd_analyzer.ai_client import AIGatewayClient
 from chorus_csd_analyzer.enricher import enrich_forms
-from chorus_csd_analyzer.agent import analyze_forms
+from chorus_csd_analyzer.agent import analyze_forms, DEFAULT_MODEL
 from chorus_csd_analyzer.converter import convert_files
 
 
@@ -205,6 +205,7 @@ ai_client = AIGatewayClient(
     url=os.environ.get("AI_GATEWAY_URL"),
     api_key=os.environ.get("AI_GATEWAY_KEY"),
 )
+AI_GATEWAY_MODEL = os.environ.get("AI_GATEWAY_MODEL", DEFAULT_MODEL)
 
 _chorus_base = os.environ.get("CHORUS_URL", "")
 _chorus_ctx = os.environ.get("CHORUS_CONTEXT", "awdServer")
@@ -373,6 +374,7 @@ async def convert(request: Request):
             domain_cache,
             gateway_url=os.environ.get("AI_GATEWAY_URL", ""),
             gateway_key=os.environ.get("AI_GATEWAY_KEY", ""),
+            model=AI_GATEWAY_MODEL,
             progress_path=session_data["dir"] / "_ai_progress.json",
         )
 
@@ -407,6 +409,7 @@ async def status():
     return JSONResponse(content={
         "ai_available": ai_client.available,
         "ai_connected": ai_connected,
+        "ai_model": AI_GATEWAY_MODEL,
         "chorus_available": chorus_client.available,
         "chorus_connected": chorus_connected,
     })
