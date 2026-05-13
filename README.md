@@ -48,7 +48,7 @@ Open `http://localhost:8000`.
 | Output parsing | `with_structured_output(FormAnalysis)` Pydantic models |
 | State | Checkpoint JSON (parallel form analysis), AgentContext caches |
 | Error handling | Transient HTTP retry with backoff; structured-extraction retry on verification failure |
-| Guardrails | Input sanitization (`_sanitize_field_text`), prompt-injection filtering, output truncation |
+| Guardrails | Input sanitization (`sanitize_field_text` from `llm_utils`), prompt-injection filtering, output truncation |
 | Verification | `_verify_analysis` checks coverage + non-existent codes + DLL-hook hallucination; one retry |
 | Subagent orchestration | Per-form parallel ReAct (semaphore-bounded); cross-form ReAct subagent |
 | Token tracking | `TokenTracker` records every LLM call source / form / model / tokens / latency |
