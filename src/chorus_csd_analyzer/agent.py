@@ -21,7 +21,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 
 from chorus_forms.csd.models import CsdForm
-from chorus_forms.csd.token_tracker import TokenTracker
+from token_tracker import TokenTracker
 from llm_utils import retry_async, sanitize_field_text
 
 logger = logging.getLogger(__name__)
@@ -469,7 +469,7 @@ async def _analyze_single_form(
                 react_in += um.get("input_tokens", 0)
                 react_out += um.get("output_tokens", 0)
         if react_in or react_out:
-            tracker.record(source="agent_react", form_name=stem, model=model,
+            tracker.record(source="agent_react", ref=stem, model=model,
                            input_tokens=react_in, output_tokens=react_out)
 
     # Get final agent message
@@ -521,7 +521,7 @@ async def _analyze_single_form(
         if tracker is not None:
             um = getattr(result, "usage_metadata", None)
             if um:
-                tracker.record(source="agent_structured", form_name=stem, model=model,
+                tracker.record(source="agent_structured", ref=stem, model=model,
                                input_tokens=um.get("input_tokens", 0),
                                output_tokens=um.get("output_tokens", 0),
                                latency_ms=latency_ms)
@@ -573,7 +573,7 @@ async def _analyze_single_form(
                 if tracker is not None:
                     um = getattr(retry_result, "usage_metadata", None)
                     if um:
-                        tracker.record(source="agent_structured", form_name=f"{stem}_retry",
+                        tracker.record(source="agent_structured", ref=f"{stem}_retry",
                                        model=model,
                                        input_tokens=um.get("input_tokens", 0),
                                        output_tokens=um.get("output_tokens", 0))
@@ -729,7 +729,7 @@ async def _cross_form_analysis(
                     react_in += um.get("input_tokens", 0)
                     react_out += um.get("output_tokens", 0)
             if react_in or react_out:
-                tracker.record(source="cross_form", form_name="batch",
+                tracker.record(source="cross_form", ref="batch",
                                model=model, input_tokens=react_in, output_tokens=react_out)
 
         # Extract final message recommendations
