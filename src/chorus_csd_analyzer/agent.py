@@ -22,46 +22,13 @@ from pydantic import BaseModel, Field
 
 from chorus_forms.csd.models import CsdForm
 from chorus_forms.csd.token_tracker import TokenTracker
-from llm_utils import sanitize_field_text
+from llm_utils import retry_async, sanitize_field_text
 
 logger = logging.getLogger(__name__)
 
 # Kept for documentation and backward-compatibility (manual loop used this limit).
 MAX_ITERATIONS = 15
 
-# Transient HTTP errors worth retrying
-_TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
-
-
-def _is_transient(exc: Exception) -> bool:
-    """Check if an exception is a transient error worth retrying."""
-    msg = str(exc).lower()
-    if any(code_str in msg for code_str in ["429", "500", "502", "503", "504"]):
-        return True
-    if any(kw in msg for kw in ["timeout", "connection", "temporarily", "rate limit"]):
-        return True
-    return False
-
-
-async def _retry_async(coro_factory, max_retries: int = 1, backoff: float = 2.0):
-    """Retry an async callable on transient errors with exponential backoff.
-
-    coro_factory: a zero-arg callable that returns a new coroutine each call.
-    """
-    last_exc = None
-    for attempt in range(max_retries + 1):
-        try:
-            return await coro_factory()
-        except Exception as e:
-            last_exc = e
-            if attempt < max_retries and _is_transient(e):
-                wait = backoff * (2 ** attempt)
-                logger.warning("Transient error (attempt %d/%d), retrying in %.1fs: %s",
-                               attempt + 1, max_retries + 1, wait, e)
-                await asyncio.sleep(wait)
-            else:
-                raise
-    raise last_exc  # unreachable, but satisfies type checker
 DEFAULT_MODEL = "Qwen/Qwen3-30B-A3B"
 KNOWLEDGE_PATH = Path(__file__).parent / "knowledge" / "awd_reference.md"
 
@@ -546,7 +513,7 @@ async def _analyze_single_form(
             )),
             final_message,
         ]
-        result = await _retry_async(
+        result = await retry_async(
             lambda: structured_llm.ainvoke(extraction_messages)
         )
         latency_ms = (time.monotonic() - t0) * 1000
