@@ -24,6 +24,18 @@ uvicorn chorus_csd_analyzer.app:app --reload --port 8000
 
 Open `http://localhost:8000`.
 
+## Dependencies
+
+Three PatientVibes tools are pulled from GitHub via `[tool.uv.sources]` in `pyproject.toml`:
+
+| Package | Description | Pinned commit |
+|---|---|---|
+| `agent-tool-chorus-v1-client` | Async httpx REST client for the SS&C Chorus v1 field metadata API | `6aa78010` |
+| `agent-tool-llm-utils` | retry/sanitize/checkpoint helpers (extracted from this harness in v0.2.0) | `cfdf9aba` |
+| `agent-tool-token-tracker` | LangChain token-usage capture (extracted from this harness in v0.2.0) | `d16943fd` |
+
+`uv sync` resolves them automatically. No manual install step required beyond having `uv` available.
+
 ## Environment variables
 
 | Variable | Required | Description |
