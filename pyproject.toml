@@ -1,6 +1,6 @@
 [project]
 name = "agent-harness-chorus-csd-analyzer"
-version = "0.1.0"
+version = "0.2.0"
 description = "FastAPI + LangGraph ReAct harness for AWD CSD form analysis and Chorus Classic XML conversion. 12-component agent harness."
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -17,6 +17,8 @@ dependencies = [
     "lxml>=5.0",
     "python-dotenv>=1.0",
     "agent-tool-chorus-v1-client",
+    "agent-tool-llm-utils",
+    "agent-tool-token-tracker",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +30,8 @@ dev = [
 
 [tool.uv.sources]
 agent-tool-chorus-v1-client = { git = "https://github.com/PatientVibes/agent-tool-chorus-v1-client.git", rev = "6aa78010c5a984642b8709b1ba4ec41596e4c6f4" }
+agent-tool-llm-utils         = { git = "https://github.com/PatientVibes/agent-tool-llm-utils.git",        rev = "cfdf9aba6aa0ccc9c37860a9bef53853e4504237" }
+agent-tool-token-tracker     = { git = "https://github.com/PatientVibes/agent-tool-token-tracker.git",    rev = "d16943fdb0516f386ac798e1527526775ef52af1" }
 
 [build-system]
 requires = ["setuptools>=68.0"]

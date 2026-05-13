@@ -4,10 +4,12 @@ requires-python = ">=3.11"
 
 [[package]]
 name = "agent-harness-chorus-csd-analyzer"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "agent-tool-chorus-v1-client" },
+    { name = "agent-tool-llm-utils" },
+    { name = "agent-tool-token-tracker" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "jinja2" },
@@ -30,6 +32,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "agent-tool-chorus-v1-client", git = "https://github.com/PatientVibes/agent-tool-chorus-v1-client.git?rev=6aa78010c5a984642b8709b1ba4ec41596e4c6f4" },
+    { name = "agent-tool-llm-utils", git = "https://github.com/PatientVibes/agent-tool-llm-utils.git?rev=cfdf9aba6aa0ccc9c37860a9bef53853e4504237" },
+    { name = "agent-tool-token-tracker", git = "https://github.com/PatientVibes/agent-tool-token-tracker.git?rev=d16943fdb0516f386ac798e1527526775ef52af1" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
@@ -52,6 +56,19 @@ version = "0.1.0"
 source = { git = "https://github.com/PatientVibes/agent-tool-chorus-v1-client.git?rev=6aa78010c5a984642b8709b1ba4ec41596e4c6f4#6aa78010c5a984642b8709b1ba4ec41596e4c6f4" }
 dependencies = [
     { name = "httpx" },
+]
+
+[[package]]
+name = "agent-tool-llm-utils"
+version = "0.1.0"
+source = { git = "https://github.com/PatientVibes/agent-tool-llm-utils.git?rev=cfdf9aba6aa0ccc9c37860a9bef53853e4504237#cfdf9aba6aa0ccc9c37860a9bef53853e4504237" }
+
+[[package]]
+name = "agent-tool-token-tracker"
+version = "0.1.0"
+source = { git = "https://github.com/PatientVibes/agent-tool-token-tracker.git?rev=d16943fdb0516f386ac798e1527526775ef52af1#d16943fdb0516f386ac798e1527526775ef52af1" }
+dependencies = [
+    { name = "pydantic" },
 ]
 
 [[package]]
