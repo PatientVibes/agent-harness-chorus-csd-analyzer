@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from chorus_forms.csd.models import CsdForm
 from token_tracker import TokenTracker
-from llm_utils import retry_async, sanitize_field_text
+from llm_utils import load_checkpoint, retry_async, sanitize_field_text, save_checkpoint
 
 logger = logging.getLogger(__name__)
 
@@ -763,32 +763,6 @@ async def _cross_form_analysis(
     ).model_dump()
 
 
-def _load_checkpoint(progress_path: Path | None) -> dict[str, dict]:
-    """Load analysis progress from a checkpoint file."""
-    if progress_path and progress_path.exists():
-        try:
-            data = json.loads(progress_path.read_text(encoding="utf-8"))
-            results = data.get("forms", {})
-            if results:
-                logger.info("Loaded checkpoint: %d forms already analyzed", len(results))
-            return results
-        except Exception as e:
-            logger.warning("Failed to load checkpoint: %s", e)
-    return {}
-
-
-def _save_checkpoint(progress_path: Path | None, form_results: dict[str, dict]) -> None:
-    """Save current analysis progress to a checkpoint file."""
-    if not progress_path:
-        return
-    try:
-        progress_path.write_text(
-            json.dumps({"forms": form_results, "timestamp": time.time()}, indent=2),
-            encoding="utf-8",
-        )
-    except Exception as e:
-        logger.warning("Failed to save checkpoint: %s", e)
-
 
 async def analyze_forms(
     forms: list[CsdForm],
@@ -831,7 +805,10 @@ async def analyze_forms(
     )
 
     # Resume from checkpoint if available
-    form_results: dict[str, dict] = _load_checkpoint(progress_path)
+    # On-disk checkpoint wraps form-results under "forms" key; unwrap here for stability.
+    form_results: dict[str, dict] = load_checkpoint(progress_path).get("forms", {})
+    if form_results:
+        logger.info("Loaded checkpoint: %d forms already analyzed", len(form_results))
 
     # Filter to forms not yet completed
     pending_forms = [f for f in forms if f.meta.file_name not in form_results]
@@ -867,7 +844,7 @@ async def analyze_forms(
             form_results[stem] = result_dict
 
         # Checkpoint after parallel batch completes
-        _save_checkpoint(progress_path, form_results)
+        save_checkpoint(progress_path, {"forms": form_results})
 
     cross = CrossFormReport().model_dump()
     if len(forms) > 1:
