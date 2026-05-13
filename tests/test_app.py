@@ -6,11 +6,10 @@ import pytest
 from pathlib import Path
 from fastapi.testclient import TestClient
 
-pytest.importorskip("chorus_forms", reason="upstream chorus_forms package not installed in public repo")
-
 
 @pytest.fixture
 def client():
+    pytest.importorskip("chorus_forms", reason="upstream chorus_forms package not installed in public repo")
     from chorus_csd_analyzer.app import app
     return TestClient(app)
 
@@ -80,6 +79,7 @@ class TestAIGatewayModelEnvVar:
 
     def test_env_var_passed_to_analyze_forms(self, monkeypatch):
         """AI_GATEWAY_MODEL env var must be threaded through to analyze_forms."""
+        pytest.importorskip("chorus_forms", reason="upstream chorus_forms package not installed in public repo")
         from unittest.mock import patch
 
         monkeypatch.setenv("AI_GATEWAY_MODEL", "Qwen/Qwen3-32B-test")

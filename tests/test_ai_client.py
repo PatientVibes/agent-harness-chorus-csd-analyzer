@@ -2,10 +2,7 @@
 import json
 import pytest
 
-pytest.importorskip("chorus_forms", reason="upstream chorus_forms package not installed in public repo")
-
 from chorus_csd_analyzer.ai_client import AIGatewayClient, extract_json
-from chorus_forms.csd.models import CsdForm, FormMeta, FormField
 
 
 class TestExtractJson:
@@ -43,6 +40,8 @@ class TestAIGatewayClient:
         assert client.available is True
 
     def test_build_messages_structure(self):
+        pytest.importorskip("chorus_forms", reason="upstream chorus_forms package not installed in public repo")
+        from chorus_forms.csd.models import CsdForm, FormMeta, FormField
         form = CsdForm(
             meta=FormMeta(fileName="TEST.CSD", formTitle="Test", formType="work"),
             fields=[
