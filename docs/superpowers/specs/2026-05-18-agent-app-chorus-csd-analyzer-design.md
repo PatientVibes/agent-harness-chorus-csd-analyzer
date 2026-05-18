@@ -1,12 +1,18 @@
 # `agent-app-chorus-csd-analyzer` — Design
 
 **Date:** 2026-05-18
-**Status:** Draft v2 — co-plan review applied, awaiting user approval
+**Status:** v3 — co-plan reviewed, Plan 1+2 shipped, Plan 4 client decision locked
 **Author:** Chris Moore (with Claude)
 
 ## Revision history
 
 - **v1 (2026-05-18)**: Initial outline.
+- **v3 (2026-05-18)**: Plan 4 client decision after deep cail + chorus-mcp-server review.
+  - **Chorus client = `chorus-mcp-server` as a library import** (NOT a cail line-by-line port, NOT an in-app port). User picked this over the hybrid recommendation, accepting the heavier transitive dep tree in exchange for inherited operations, async/httpx/tenacity/JWT done, typed pydantic models. The MCP server itself is NOT started — we import the client class directly.
+  - **chorus-mcp-server is being redone in parallel** — the exact API surface (`ChorusClient`'s method names, signatures, model shapes) is **not locked** by this spec. Plan 4 will pin against whatever the refactored package exposes; the contract this app needs is captured in §"Live Chorus import" as a method-level wish list rather than a code dependency.
+  - **PyInstaller implication**: bundle list in §"Packaging and distribution" includes `chorus_mcp_server` and its native-lib transitive (`cryptography`) — exact `collect_all` list re-verified in Plan 5 against whatever the refactored package ships.
+  - **Environment login UX**: per-session form (base_url + user + pass). Persist recently-used `base_url`s to a new `chorus_environments` SQLite table (no credential columns ever); on next launch, the ChorusImport pane shows a dropdown of recent URLs.
+  - **What I learned in cail that's still relevant**: API quirks (`pages` not `page` for businessareas; transaction+case double-fetch for work types; `{"$": "X", "@href": "Y"}` response shape) — these are inputs to the chorus-mcp-server redo, not things this app should re-implement.
 - **v2 (2026-05-18)**: Co-plan review with Gemini 2.5 Pro applied. Changes:
   - Harness dep: floor pin → editable path source (harness is private, not on PyPI).
   - Repo shape: added `app/config.py`, `app/db.py`, `app/launcher.py` (missing from v1; required by the card-extractor precedent).
@@ -110,23 +116,50 @@ The agent does not have a "commit" tool — only the user's accept action mutate
 
 ## Live Chorus import (Plan 4)
 
-The import surface borrows from `PatientVibes/cail`'s `ChorusAPI` class:
+The Chorus REST client is consumed from the `chorus-mcp-server` sibling repo as a library import. We import the client class directly and use it as a Python library; **we do not run an MCP server** alongside the app. This decision was locked in v3 after evaluating three alternatives (port cail line-by-line, hybrid port that copies modern patterns, library import).
 
-- Endpoints: `/awdServer/awd/services/v1/user` (login), `/awdServer/awd/services/v1/fields` (paginated field definitions), `/awdServer/awd/services/v1/user/businessareas`, `/awdServer/awd/services/v1/user/types`, `/awdServer/awd/services/v1/instances` (instance creation).
-- Auth: HTTP Basic with base64-encoded credentials; CSRF token captured from response headers and threaded into subsequent POSTs.
-- Password is held in memory only for the duration of the import; never persisted to SQLite or written to disk.
-- Imports are per-instance (one POST per row); progress streams back to the UI as a percentage + a tail of recent statuses; failed rows are collected for download as a CSV.
+**chorus-mcp-server is being redone in parallel.** The exact class names, method signatures, and model shapes below are a **wish list** describing what this app needs from the refactored package, NOT a contract against the current code. Plan 4 implementation begins after the refactored client surface stabilises; the app's `app/services/chorus_client.py` is a thin adapter that translates wish-list calls into whatever the refactored package exposes.
 
-The new app's `app/services/chorus_client.py` is a Python module containing the same `ChorusAPI` shape `cail` uses, ported to be `httpx`-based (matching the rest of this codebase) instead of `requests`. Tests use a mocked HTTP transport. The cail repo stays separate — we vendor the patterns, not the code.
+**Why this client, not a fresh port:**
 
-**Constants and behaviours preserved from cail** (do not silently drop these during the port):
+- Async + `httpx` + `tenacity`-based retry already implemented.
+- JWT + HTTP Basic dual auth with auto-refresh on 401 (cail only does Basic).
+- Pydantic typed request/response models (`CreateInstanceRequest`, `ChorusInstance`, …) — no raw-dict parsing in our code.
+- Cail's API quirks (`pages` not `page` for businessareas, transaction+case double-fetch for work types, `{"$": "X", "@href": "Y"}` response shape) are already handled inside `ChorusClient`.
+- Future Chorus operations get added in the upstream sibling repo and we inherit them automatically.
 
-- `DEFAULT_PAGE_SIZE = 100`, `LARGE_PAGE_SIZE = 1000` — pagination of `get_fields`.
-- `REQUEST_TIMEOUT = 30` — per-request timeout, threaded into `httpx.Client`.
-- `MAX_RETRIES = 3`, `RETRY_BASE_DELAY = 1.0` — exponential-backoff retry on transient HTTP errors. Reuse `agent-tool-llm-utils`'s retry helper if its shape fits; otherwise port the inline `cail` loop.
-- `MAX_FIELD_VALUE_LENGTH = 4000` — input clamp before POSTing instances.
-- CSRF token extraction from response headers (`csrf_token` header name) — required for state-changing POSTs.
-- Password held in `auth_token` (`base64(user:pass)`) on the client instance only; never persisted to SQLite.
+**Dependencies the import adds** (visible to PyInstaller in Plan 5):
+
+```
+chorus-mcp-server -> mcp, sse-starlette, websockets, prometheus-client,
+                     structlog, marshmallow, aiosqlite, PyJWT, cryptography,
+                     lxml (already a harness dep)
+```
+
+The MCP SDK, sse-starlette, and websockets are imported transitively but **never executed at runtime** — `app/services/chorus_client.py` only touches `chorus_mcp_server.client` + `.models`. We accept the bundle size in exchange for not maintaining a parallel REST client.
+
+**Operations this app needs** (wish list — final method names depend on the chorus-mcp-server redo):
+
+- **Authenticate** (Basic and/or JWT) given `base_url + user + pass`, returning an opaque session/client handle. Must capture CSRF on the same call if the underlying API requires it.
+- **List business areas** (LOBs) — for the wizard's "business area" dropdown.
+- **List work types for a business area** — for the wizard's "work type" dropdown. Must cover both transaction and case work types (cail's double-fetch quirk should be hidden inside the client, not bubbled up to us).
+- **Create instances** — accept a list of typed instance-creation requests, return per-instance success/failure with enough detail to drive a CSV failure report.
+- **Optional**: list recent instances / search — for verification after import (not strictly needed for Plan 4 MVP but nice-to-have for the wizard's "results" step).
+
+The app's `app/services/chorus_client.py` will be a thin adapter that exposes exactly these five operations to the rest of the app and translates them into whatever the refactored chorus-mcp-server package provides. If the refactor changes API shapes later, only the adapter needs to follow.
+
+**Wizard flow** (`ChorusImport.tsx`):
+
+1. **Connect**: pick from recent `base_url`s (or type a new one) → enter user + pass → `authenticate_*`.
+2. **Configure**: pick business area + work type from dropdowns populated by `get_business_areas` / `get_work_types`.
+3. **Confirm**: preview the field mapping the agent produced.
+4. **Execute**: stream per-instance results; failed instances collected for download as CSV; success/fail counters persist to the `chorus_imports` SQLite table.
+
+**Credential handling** (unchanged from v2 risk-table):
+
+- Password held in the in-memory `ChorusClient` instance only; never persisted.
+- `chorus_imports` SQLite table stores `base_url`, `business_area`, `work_type`, counts, timestamps — **no password / auth_token / CSRF columns**.
+- A new `chorus_environments` SQLite table stores `base_url` + `last_used_at` + `display_name` (optional) only — no auth columns ever. This powers the "recent servers" dropdown without persisting credentials. Users can delete entries from the UI.
 
 ## Boundary: harness vs. app
 
@@ -164,6 +197,7 @@ Contents:
   - `chat_messages` table: session_id, role, content, tool_calls, ts.
   - `override_log` table: session_id, form_name, field_path, kind (`type_promotion` | `ignore` | `dll_hook`), old_value, new_value, reason, accepted, ts.
   - `chorus_imports` table: session_id, base_url, business_area, work_type, started_at, completed_at, success_count, fail_count. **No password or auth_token columns** — credentials live only on the in-memory `ChorusClient` for the import's duration.
+  - `chorus_environments` table (Plan 4): base_url (PK), display_name (nullable), last_used_at. Powers the "recent servers" dropdown in the ChorusImport pane. **No credential columns ever** — users delete entries from the UI; deleting an entry only forgets the URL, never invalidates a live session.
 - **Filesystem** — `<state_dir>/uploads/` for raw binaries, `<state_dir>/outputs/` for canonical JSON + rendered XML. Both keyed by `session_id`.
 
 No daemon, no external services (until the user explicitly triggers a live Chorus import).
@@ -181,8 +215,11 @@ harness_packages = [
     "chorus_v1_client",      # agent-tool-chorus-v1-client (REST client)
     "llm_utils",             # agent-tool-llm-utils (retry, sanitize, extract_json, checkpoint)
     "token_tracker",         # agent-tool-token-tracker (LangChain usage capture)
+    "chorus_mcp_server",     # Plan 4 live-import client (we import .client.ChorusClient only)
 ]
 ```
+
+`chorus_mcp_server` adds `cryptography` (native-libs — PyInstaller has hooks-contrib coverage but verify in Plan 5), `PyJWT`, `mcp`, `sse-starlette`, `websockets`, `prometheus-client`, `structlog`, `marshmallow`, `aiosqlite`. These are bundled in full even though most are never executed (we never start the MCP server). If bundle size becomes a problem in Plan 5, the mitigation is to vendor `chorus_mcp_server/client.py` + `auth.py` + `models.py` into our repo and drop the package dependency.
 
 `uvicorn` hidden imports (websockets + lifespan loaders) are added to `hiddenimports` exactly as in card-extractor's spec. The launcher is `app/launcher.py`, mirroring card-extractor.
 
