@@ -1,7 +1,8 @@
 # `agent-app-chorus-csd-analyzer` — Design
 
 **Date:** 2026-05-18
-**Status:** v3 — co-plan reviewed, Plan 1+2 shipped, Plan 4 client decision locked
+**Status:** v3 — co-plan reviewed; Plans 1, 2, 3, 3b shipped; Plans 3c/4/5 pending the chorus-mcp-server redo
+**App repo:** [`D:/agent-app-chorus-csd-analyzer`](../../../../agent-app-chorus-csd-analyzer/) — see its README + CHANGELOG for shipped state
 **Author:** Chris Moore (with Claude)
 
 ## Revision history
@@ -240,11 +241,13 @@ The harness's existing tests are not duplicated.
 
 ## Plan order
 
-1. **Plan 1 — Backend foundation**: FastAPI scaffolding (`app/main.py` with `lifespan`), `app/config.py` with **frozen-aware** `state_dir`/`web_dist` resolution (do this in Plan 1, not Plan 5 — the design must be packaging-ready from the start), `app/db.py` + schema, `/uploads`, `/analyses/:id` (JSON/XML/summary), `/health`. Pipeline service wraps the harness.
-2. **Plan 2 — Frontend**: Vite + React + TS scaffold, FileDrop pane, Previewer with three tabs. Vite dev proxy forwards `/uploads`, `/analyses`, `/chorus`, `/health` to the backend on `:8000`.
-3. **Plan 3 (a + b) — Chat**: WS `/chat/{analysis_id}`, override-log table, `ChatAgentService` with the chat-tool surface (5 vs 3 — see §"Chat agent tools" alternative); React chat pane with override-proposal cards.
-4. **Plan 4 — Live Chorus import**: `chorus_client.py` (cail-derived, with pagination + retry constants preserved), `/chorus/*` routes, `ChorusImport.tsx` wizard pane.
-5. **Plan 5 — Installer**: `packaging/pyinstaller.spec` (all 5 `collect_all` packages enumerated), `app/launcher.py`, `packaging/build.py` convenience wrapper, packaging smoke test.
+1. **Plan 1 — Backend foundation** ✅ **shipped**: FastAPI scaffolding (`app/main.py` with `lifespan`), `app/config.py` with **frozen-aware** `state_dir`/`web_dist` resolution (do this in Plan 1, not Plan 5 — the design must be packaging-ready from the start), `app/db.py` + schema, `/uploads`, `/analyses/:id` (JSON/XML/summary), `/health`. Pipeline service wraps the harness.
+2. **Plan 2 — Frontend** ✅ **shipped**: Vite + React + TS scaffold, FileDrop pane, Previewer with three tabs. Vite dev proxy forwards `/uploads`, `/analyses`, `/chorus`, `/health` to the backend on `:8000`.
+3. **Plan 3 — Chat** ✅ **shipped**: WS `/chat/{session_id}`, override-log writes, `ChatService` + `StubAgent` (rule-based, no LLM yet) + tools (`read_field`, `override_field`). React chat pane with override-proposal cards.
+4. **Plan 3b — `re_examine_form` tool** ✅ **shipped**: deterministic per-form rollup with focus-aware recommendations; surfaces as a `re_examine_result` WS message.
+5. **Plan 3c — LLM-backed agent** — pending: swap `StubAgent` for an LLM-backed `AgentProtocol` impl. Coupled to the chorus-mcp-server redo (the LLM access path may flow through it).
+6. **Plan 4 — Live Chorus import** — pending the mcp redo: `app/services/chorus_client.py` becomes a thin adapter over the refactored chorus-mcp-server client; `/chorus/*` routes; `ChorusImport.tsx` wizard pane; `chorus_environments` table for the "recent base_urls" dropdown.
+7. **Plan 5 — Installer** — pending: `packaging/pyinstaller.spec` (all 5+1 `collect_all` packages), `app/launcher.py`, `packaging/build.py`, `RUN_PACKAGING_SMOKE=1` end-to-end test.
 
 ## Risks
 
