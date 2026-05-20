@@ -69,6 +69,20 @@ Three PatientVibes tools are pulled from GitHub via `[tool.uv.sources]` in `pypr
 
 The analysis system prompt lives at [`PatientVibes/agent-skills/plugins/csd-form-analysis/`](https://github.com/PatientVibes/agent-skills). This repo vendors a copy at `src/chorus_csd_analyzer/prompts/system_prompt.md` for standalone operation.
 
+## Sibling app
+
+The installable single-machine app that wraps this harness lives at
+[`D:/agent-app-chorus-csd-analyzer`](../agent-app-chorus-csd-analyzer) (private sibling
+repo). It provides a React file-drop UI, a 3-tab previewer (JSON / Chorus Classic XML /
+per-form summary), a chat session with override-proposal tools, and (as of 2026-05-19)
+a 4-step live Chorus import wizard backed by `chorus_mcp_server.ChorusClient` as a
+library import. Plans 1, 2, 3, 3b, and 4 are shipped; 3c and 5 (PyInstaller installer)
+remain pending — see the app's `CHANGELOG.md`.
+
+Design spec: [`docs/superpowers/specs/2026-05-18-agent-app-chorus-csd-analyzer-design.md`](docs/superpowers/specs/2026-05-18-agent-app-chorus-csd-analyzer-design.md) (status v4).
+
+The app depends on this harness via `[tool.uv.sources]` editable path source.
+
 ## License
 
 MIT. See `LICENSE`.
