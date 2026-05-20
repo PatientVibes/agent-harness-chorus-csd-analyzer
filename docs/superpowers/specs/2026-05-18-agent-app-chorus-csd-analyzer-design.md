@@ -1,7 +1,7 @@
 # `agent-app-chorus-csd-analyzer` — Design
 
-**Date:** 2026-05-18
-**Status:** v3 — co-plan reviewed; Plans 1, 2, 3, 3b shipped; Plans 3c/4/5 pending the chorus-mcp-server redo
+**Date:** 2026-05-18 (last updated 2026-05-19)
+**Status:** v4 — Plan 4 shipped 2026-05-19; Plans 1, 2, 3, 3b, **4** done; 3c + 5 pending
 **App repo:** [`D:/agent-app-chorus-csd-analyzer`](../../../../agent-app-chorus-csd-analyzer/) — see its README + CHANGELOG for shipped state
 **Author:** Chris Moore (with Claude)
 
@@ -9,6 +9,11 @@
 
 - **v1 (2026-05-18)**: Initial outline.
 - **v3 (2026-05-18)**: Plan 4 client decision after deep cail + chorus-mcp-server review.
+- **v4 (2026-05-19)**: Plan 4 shipped end-to-end. Spec is now historical — the implementation in the sibling app is the source of truth; see `agent-app-chorus-csd-analyzer/CHANGELOG.md` for the per-subtask breakdown (4.1 adapter → 4.7 soak test + docs). Notable deltas from the v3 wish list:
+  - **chorus-mcp-server pinned at v0.5.0-rc1** (commit `682c645c`) via editable path source. The wish list in §"Live Chorus import" matched the real `ChorusClient` surface verbatim; no adapter shim needed beyond the app-local DTO wrap.
+  - **Per-spec dispatch on instance creation** chosen at implementation time — the upstream `create_instances` batch is all-or-nothing, but the wizard's "per-row success/failure" UX requires per-spec calls. Documented in `app/services/chorus_client.py`.
+  - **cail's transaction+case double-fetch quirk for work types** is **NOT** in v0.5.0-rc1's `get_types_for_business_area` (single fetch). The adapter matches the single fetch; soak test logs a warning (not failure) if it returns <2 work types, which is the signal to add the second fetch + dedupe.
+  - **One-instance-per-form mapping policy with type-aware placeholders** decided at implementation time — the analysis JSON has no field values, only inferred types. The import creates one test instance per form to validate the schema flows correctly; configurable via `MappingConfig`.
   - **Chorus client = `chorus-mcp-server` as a library import** (NOT a cail line-by-line port, NOT an in-app port). User picked this over the hybrid recommendation, accepting the heavier transitive dep tree in exchange for inherited operations, async/httpx/tenacity/JWT done, typed pydantic models. The MCP server itself is NOT started — we import the client class directly.
   - **chorus-mcp-server is being redone in parallel** — the exact API surface (`ChorusClient`'s method names, signatures, model shapes) is **not locked** by this spec. Plan 4 will pin against whatever the refactored package exposes; the contract this app needs is captured in §"Live Chorus import" as a method-level wish list rather than a code dependency.
   - **PyInstaller implication**: bundle list in §"Packaging and distribution" includes `chorus_mcp_server` and its native-lib transitive (`cryptography`) — exact `collect_all` list re-verified in Plan 5 against whatever the refactored package ships.
@@ -245,9 +250,9 @@ The harness's existing tests are not duplicated.
 2. **Plan 2 — Frontend** ✅ **shipped**: Vite + React + TS scaffold, FileDrop pane, Previewer with three tabs. Vite dev proxy forwards `/uploads`, `/analyses`, `/chorus`, `/health` to the backend on `:8000`.
 3. **Plan 3 — Chat** ✅ **shipped**: WS `/chat/{session_id}`, override-log writes, `ChatService` + `StubAgent` (rule-based, no LLM yet) + tools (`read_field`, `override_field`). React chat pane with override-proposal cards.
 4. **Plan 3b — `re_examine_form` tool** ✅ **shipped**: deterministic per-form rollup with focus-aware recommendations; surfaces as a `re_examine_result` WS message.
-5. **Plan 3c — LLM-backed agent** — pending: swap `StubAgent` for an LLM-backed `AgentProtocol` impl. Coupled to the chorus-mcp-server redo (the LLM access path may flow through it).
-6. **Plan 4 — Live Chorus import** — pending the mcp redo: `app/services/chorus_client.py` becomes a thin adapter over the refactored chorus-mcp-server client; `/chorus/*` routes; `ChorusImport.tsx` wizard pane; `chorus_environments` table for the "recent base_urls" dropdown.
-7. **Plan 5 — Installer** — pending: `packaging/pyinstaller.spec` (all 5+1 `collect_all` packages), `app/launcher.py`, `packaging/build.py`, `RUN_PACKAGING_SMOKE=1` end-to-end test.
+5. **Plan 3c — LLM-backed agent** — pending: swap `StubAgent` for an LLM-backed `AgentProtocol` impl. The chorus-mcp-server redo is no longer a blocker (v0.5.0-rc1 shipped, dev MCP is up); remaining decision is which inference path to wire (direct AI Gateway vs MCP-server-mediated).
+6. **Plan 4 — Live Chorus import** ✅ **shipped 2026-05-19**: `app/services/chorus_client.py` adapter over `chorus_mcp_server.ChorusClient` (v0.5.0-rc1), session manager with idle/hard TTL + sweep, mapping service, import runner with `asyncio.Event` wake-ups, 7 `/chorus` routes including `WS /chorus/import/{id}/stream`, frontend 4-step wizard, soak test gated by `RUN_CHORUS_SOAK=1`. 81 backend + 24 frontend new tests. See app `CHANGELOG.md` §"Plan 4" for the full module list.
+7. **Plan 5 — Installer** — pending: `packaging/pyinstaller.spec` (5 harness packages + `chorus_mcp_server` + `cryptography` native-lib hooks), `app/launcher.py`, `packaging/build.py`, `RUN_PACKAGING_SMOKE=1` end-to-end test.
 
 ## Risks
 
@@ -266,7 +271,7 @@ Explicit failure modes to design against — most are unavoidable but each needs
 
 - **Boundary**: Option A — new sibling app shadows the existing UI in the harness. Harness UI keeps working; new app is additive.
 - **Chat tools**: 5 tools as listed (`read_field`, `override_type_promotion`, `mark_field_ignore`, `re_examine_form`, `update_dll_hook`).
-- **Live Chorus import**: in-scope for v1, as Plan 4. Build on the `cail` `ChorusAPI` patterns; port from `requests` to `httpx`.
+- **Live Chorus import**: in-scope for v1, as Plan 4. ~~Build on the `cail` `ChorusAPI` patterns; port from `requests` to `httpx`.~~ **Resolved differently in v4** — instead of porting cail, we imported `chorus_mcp_server.ChorusClient` as a library (async httpx + tenacity + JWT/Basic dual auth + typed pydantic models already done upstream).
 - **Frontend tabs**: JSON / XML / per-form summary.
 - **Harness dep pin**: floor pin (`>=0.2.0`). Rationale: matches card-extractor's pattern; lets fixes flow through automatically without forcing exact-version churn; the harness is a sibling we control, so any breakage from a floor-pin is fast to detect.
 
