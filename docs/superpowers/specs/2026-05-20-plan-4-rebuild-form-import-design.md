@@ -263,10 +263,10 @@ This doesn't protect against two *different* sessions importing the same `form_n
 
 ## Open questions (to resolve in implementation / soak)
 
-1. **Name collision behavior.** Does `tcAJAXImportUserScreen` overwrite an existing form with the same `csdName`, or return an error code? Soak probe will record. If error: defer "Force overwrite" UI to a follow-up.
-2. **Warnings beyond the benign one.** Are there other XSLT-fallthrough warnings worth filtering? Show verbatim until known.
-3. **Connect-step "depth" of validation.** `GET /user` confirms Basic auth but not portal-layer reachability. If users hit "auth works but portal doesn't" in the wild, add a cheap `portal_action` no-op to the connect step. Defer.
-4. **`base_url` shape requirements.** The helper requires the canonical REST v1 root (`/awd/services/v1`). The connect step should validate this and offer a corrected URL in the error message. Confirm exact message wording during implementation.
+1. **Name collision behavior.** ~~Does `tcAJAXImportUserScreen` overwrite an existing form with the same `csdName`, or return an error code?~~ **Resolved 2026-05-20 soak (dev-soak):** Chorus overwrites silently. `IDEMPOTENCY: r2.ok=True code=0 desc='The job completed successfully'`. No "Force overwrite" UI affordance needed; no follow-up issue required.
+2. **Warnings beyond the benign one.** ~~Are there other XSLT-fallthrough warnings worth filtering?~~ **Partially resolved 2026-05-20 soak:** the one-form-end-to-end soak ran cleanly with zero unfiltered warnings (the only ones that surfaced are filtered server-side by `import_user_screen`). Keep "show verbatim" stance until field reports surface a new pattern.
+3. **Connect-step "depth" of validation.** `GET /user` confirms Basic auth but not portal-layer reachability. If users hit "auth works but portal doesn't" in the wild, add a cheap `portal_action` no-op to the connect step. Deferred. (Soak's `test_soak_connect_ok_portal_down_codifies_per_row_failure` codifies the current per-row-failure UX as the expected behavior until then.)
+4. **`base_url` shape requirements.** The helper requires the canonical REST v1 root (`/awd/services/v1`). The connect step should validate this and offer a corrected URL in the error message. Confirm exact message wording during implementation. — Still open (no UX change required by this rebuild; deferred to a follow-up).
 
 ## Execution strategy
 
