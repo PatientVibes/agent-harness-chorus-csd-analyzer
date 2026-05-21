@@ -1,15 +1,21 @@
 # `agent-app-chorus-csd-analyzer` — Design
 
-**Date:** 2026-05-18 (last updated 2026-05-19)
-**Status:** v4 — Plan 4 shipped 2026-05-19; Plans 1, 2, 3, 3b, **4** done; 3c + 5 pending
+**Date:** 2026-05-18 (last updated 2026-05-20)
+**Status:** v5 — Plan 4 ripped + rebuilt as form deployment (2026-05-20); Plans 1, 2, 3, 3b, **4 (rebuilt)** done; 3c + 5 pending
 **App repo:** [`D:/agent-app-chorus-csd-analyzer`](../../../../agent-app-chorus-csd-analyzer/) — see its README + CHANGELOG for shipped state
 **Author:** Chris Moore (with Claude)
 
 ## Revision history
 
+- **v5 (2026-05-20)**: **Plan 4 ripped + rebuilt against the correct abstraction.** The 2026-05-20 manual UI walkthrough surfaced that v4's wizard solved the wrong problem — forms are global Chorus schema objects, not BA-scoped data instances. The correct primitive (`/awd/portal?jobName=tcAJAXImportUserScreen` on the legacy AJAX portal layer) was added to `chorus-mcp-server` in [PR #62](https://github.com/PatientVibe/chorus-mcp-server/pull/62) (`portal_action` + `import_user_screen` helpers). This spec's §"Live Chorus import" sections are now historical; the rebuild has its own focused spec at [`2026-05-20-plan-4-rebuild-form-import-design.md`](2026-05-20-plan-4-rebuild-form-import-design.md) (and implementation plan at [`../plans/2026-05-20-plan-4-rebuild-form-import.md`](../plans/2026-05-20-plan-4-rebuild-form-import.md)).
+  - **Shipped 2026-05-20 in two PRs against the app repo:** [#3](https://github.com/PatientVibe/agent-app-chorus-csd-analyzer/pull/3) (rip, squash `6f96856`) + [#5](https://github.com/PatientVibe/agent-app-chorus-csd-analyzer/pull/5) (rebuild, squash `2874dde`). #5 is the rebased equivalent of #4, which auto-closed when #3's deletion removed its stacked base branch.
+  - **Net change:** ~5000 lines + 91 wrong-shape backend tests + 10 frontend tests removed; ~500 lines + 19 backend unit + 5 soak + 10 frontend added. Test totals after: backend 103 unit + 5 soak; frontend 56.
+  - **Reversed v4 decisions:** the v4 entry's `chorus_environments` table, `chorus_imports` SQLite persistence, BA/work-type/queue wizard steps, and `ChorusClient.create_instances` call path are all gone. The `chorus-mcp-server` library is still used in-process, but via `transport.import_user_screen` (a pure async function) rather than `ChorusClient` (the REST-API wrapper).
+  - **Soak-verified against dev-soak 2026-05-20:** end-to-end form deploy works; **idempotency = silent overwrite** (duplicate `csdName` re-import returns `code=0`); wrong-password → auth-fail UX is correct; zero unfiltered warnings on real deploy. Resolves the rebuild spec's open question #1.
+  - **Cross-family review:** Gemini 2.5 Pro + Kimi K2.6 + DeepSeek V3.1 consensus via OpenRouter → 0 findings. Claude self-review found 3 IMPORTANT + 5 MINOR items, all addressed before merge.
 - **v1 (2026-05-18)**: Initial outline.
 - **v3 (2026-05-18)**: Plan 4 client decision after deep cail + chorus-mcp-server review.
-- **v4 (2026-05-19)**: Plan 4 shipped end-to-end. Spec is now historical — the implementation in the sibling app is the source of truth; see `agent-app-chorus-csd-analyzer/CHANGELOG.md` for the per-subtask breakdown (4.1 adapter → 4.7 soak test + docs). Notable deltas from the v3 wish list:
+- **v4 (2026-05-19)**: Plan 4 shipped end-to-end. (See v5 — this implementation was the wrong abstraction and was ripped + rebuilt.) Notable deltas from the v3 wish list:
   - **chorus-mcp-server pinned at v0.5.0-rc1** (commit `682c645c`) via editable path source. The wish list in §"Live Chorus import" matched the real `ChorusClient` surface verbatim; no adapter shim needed beyond the app-local DTO wrap.
   - **Per-spec dispatch on instance creation** chosen at implementation time — the upstream `create_instances` batch is all-or-nothing, but the wizard's "per-row success/failure" UX requires per-spec calls. Documented in `app/services/chorus_client.py`.
   - **cail's transaction+case double-fetch quirk for work types** is **NOT** in v0.5.0-rc1's `get_types_for_business_area` (single fetch). The adapter matches the single fetch; soak test logs a warning (not failure) if it returns <2 work types, which is the signal to add the second fetch + dedupe.
